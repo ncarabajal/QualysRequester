@@ -1,3 +1,10 @@
+## Project Ignores ##
+
+config.json
+downloads/
+
+## Python Ignores ##
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
