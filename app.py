@@ -5,6 +5,7 @@ import xmltodict
 from io import StringIO, BytesIO
 import json
 import os
+import signal
 import sys
 import queue
 from time import sleep
@@ -16,6 +17,11 @@ class QualysRequester():
 	headers = {
 		'X-Requested-With': 'Report Requester: Qualys'
 	}
+
+	def signal_handler(self, sig, frame):
+		print('You pressed Ctrl+C!')
+		self.logout()
+		sys.exit(0)
 
 	def __init__(self, loglevel=logging.INFO):
 		"""Initialization for requester."""
@@ -30,6 +36,7 @@ class QualysRequester():
 		self.download_queue = queue.Queue()
 		# Always load config when created
 		self.loadconfig()
+		signal.signal(signal.SIGINT, self.signal_handler)
 
 	def loadconfig(self, configname='config.json'):
 		"""Loads main config from disk.
@@ -89,7 +96,7 @@ class QualysRequester():
 				# TODO - make sure there is something try except in case another thread already got it
 				# TODO - file handling
 				rp = self.download_queue.get()
-				filename = f"{rp['TITLE']}-{rp['ID']}-RAW.{rp['OUTPUT_FORMAT']}"
+				filename = f"downloads/{rp['TITLE']}-{rp['ID']}-RAW.{rp['OUTPUT_FORMAT']}"
 				# TODO - DO NOT CLOBBER FILES
 				logging.info(f'Downloading report {rp} as {filename}')
 				data = {
