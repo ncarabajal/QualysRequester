@@ -5,10 +5,10 @@ import xmltodict
 from io import StringIO, BytesIO
 import json
 import os
-import signal
 import sys
 import queue
 from time import sleep
+import argparse
 
 # https://www.qualys.com/docs/qualys-api-quick-reference.pdf
 # https://www.qualys.com/docs/qualys-api-v2-user-guide.pdf
@@ -18,12 +18,7 @@ class QualysRequester():
 		'X-Requested-With': 'Report Requester: Qualys'
 	}
 
-	def signal_handler(self, sig, frame):
-		print('You pressed Ctrl+C!')
-		self.logout()
-		sys.exit(0)
-
-	def __init__(self, loglevel=logging.INFO):
+	def __init__(self, loglevel=logging.INFO, filepath=""):
 		"""Initialization for requester."""
 		# Init logging
 		logging.basicConfig(level=loglevel, format='%(asctime)s - %(filename)s - %(threadName)s - %(levelname)s - %(message)s')
@@ -36,7 +31,7 @@ class QualysRequester():
 		self.download_queue = queue.Queue()
 		# Always load config when created
 		self.loadconfig()
-		signal.signal(signal.SIGINT, self.signal_handler)
+		self.filepath = filepath
 
 	def loadconfig(self, configname='config.json'):
 		"""Loads main config from disk.
@@ -58,7 +53,7 @@ class QualysRequester():
 		self.load_report_cache()
 		self.rs = requests.session()
 		self.authenticate()
-		# TODO - create worker pool
+		# TODO - create worker poolw
 		while True:
 			try:
 				self.get_report_list()
@@ -77,7 +72,7 @@ class QualysRequester():
 
 	def enqueue_reports(self):
 		"""Figure out which reports still need to be downloaded."""
-		# TODO - hash each report with something like sha256 for validation?
+		# TODO - hash each report with something like sha256 for validation
 		logging.debug('Enqueing reports starting')
 		for t,r in self.reports.items():
 			logging.debug(f'Processing report {r}')
@@ -94,9 +89,9 @@ class QualysRequester():
 		while True:
 			if not self.download_queue.empty():
 				# TODO - make sure there is something try except in case another thread already got it
-				# TODO - file handling
+				# TODO - atomics for file handling
 				rp = self.download_queue.get()
-				filename = f"downloads/{rp['TITLE']}-{rp['ID']}-RAW.{rp['OUTPUT_FORMAT']}"
+				filename = f"{rp['TITLE']}-{rp['ID']}-RAW.{rp['OUTPUT_FORMAT']}"
 				# TODO - DO NOT CLOBBER FILES
 				logging.info(f'Downloading report {rp} as {filename}')
 				data = {
@@ -104,6 +99,8 @@ class QualysRequester():
 					'id': rp['ID']
 				}
 				rs = self.qualys_post('report/', headers=self.headers, data=data)
+				filename = self.filepath + filename
+				#exit()
 				with open(filename, 'wb') as f:
 					for chunk in rs.iter_content(chunk_size=1024):
 						if chunk: # Filter out keep-alive new chunks
@@ -143,8 +140,7 @@ class QualysRequester():
 		for r in xdict['REPORT_LIST_OUTPUT']['RESPONSE']['REPORT_LIST']['REPORT']:
 			# r keys 'ID', 'TITLE', 'TYPE', 'USER_LOGIN', 'LAUNCH_DATETIME', 'OUTPUT_FORMAT', 'SIZE', 'STATUS', 'EXPIRATION_DATETIME'
 			# TODO - Configurable filter
-			#if r['TITLE'].startswith('CUT'):
-			if any(r['TITLE'].startswith(prf) for prf in self.conf['prefixes']):
+			if r['TITLE'].startswith('NET.WB.'):
 				if r['TITLE'] not in self.reports:
 					logging.debug(f"Adding new report {r['TITLE']}")
 					self.reports[r['TITLE']] = r
@@ -185,6 +181,8 @@ class QualysRequester():
 				if chunk:
 					handle.write(chunk)
 
+
+
 	def authenticate(self):
 		logging.info('Authenticating')
 		data = {
@@ -205,7 +203,7 @@ class QualysRequester():
 		url = self.conf['url']+endpoint
 		logging.debug(f'Posting to {url}\tHeaders: {headers}\tData: {data}')
 		#r = requests.post(url=url, headers=self.headers, data=data, stream=True)
-		# stream=True keep memory usage down
+		# stream=True is extremely important for keeping memory usage down
 		r = self.rs.post(url=url, headers=self.headers, data=data, stream=True)
 		if r.status_code != requests.codes.ok:
 			logging.error(f'Problem posting to {url}')
@@ -213,6 +211,13 @@ class QualysRequester():
 		return r
 
 if __name__ == '__main__':
+	parser = argparse.ArgumentParser(description="Flip a switch by setting a flag")
+	parser.add_argument('-w', help="Test", action='store_true')
+	parser.add_argument('-o', help="Will write the file(s) to path of your choice ") #, dest="outputPath" )
+
+	args = parser.parse_args()
+	filepath = args.outputPath
+	#exit()
 	level = logging.getLevelName(os.getenv('LOGLEVEL', 'INFO'))
-	r = QualysRequester(level)
+	r = QualysRequester(level, filepath)
 	r.run()
