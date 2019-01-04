@@ -9,4 +9,4 @@ To specify the report or reports, the user must change the string in line 143. I
 --help : Simple help menu <br/>
 -o : Specify the file path for the output. At the moment the absolute path must be used. 
 
-If there is any feedback or suggestions please feel free to 
+If there is any feedback or suggestions please feel free to me or the original author @fragtastic. 
