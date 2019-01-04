@@ -140,7 +140,7 @@ class QualysRequester():
 		for r in xdict['REPORT_LIST_OUTPUT']['RESPONSE']['REPORT_LIST']['REPORT']:
 			# r keys 'ID', 'TITLE', 'TYPE', 'USER_LOGIN', 'LAUNCH_DATETIME', 'OUTPUT_FORMAT', 'SIZE', 'STATUS', 'EXPIRATION_DATETIME'
 			# TODO - Configurable filter
-			if r['TITLE'].startswith('NET.WB.'):
+			if r['TITLE'].startswith('!!!REPORT NAME!!!'):
 				if r['TITLE'] not in self.reports:
 					logging.debug(f"Adding new report {r['TITLE']}")
 					self.reports[r['TITLE']] = r
@@ -212,9 +212,8 @@ class QualysRequester():
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description="Flip a switch by setting a flag")
-	parser.add_argument('-w', help="Test", action='store_true')
+	#parser.add_argument('-w', help="Test", action='store_true')
 	parser.add_argument('-o', help="Will write the file(s) to path of your choice ") #, dest="outputPath" )
-
 	args = parser.parse_args()
 	filepath = args.outputPath
 	#exit()
