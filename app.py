@@ -5,6 +5,7 @@ import xmltodict
 from io import StringIO, BytesIO
 import json
 import os
+import signal
 import sys
 import queue
 from time import sleep
@@ -18,6 +19,11 @@ class QualysRequester():
 		'X-Requested-With': 'Report Requester: Qualys'
 	}
 
+	def signal_handler(self, sig, frame):
+		print('You pressed Ctrl+C!')
+		self.logout()
+		sys.exit(0)
+
 	def __init__(self, loglevel=logging.INFO, filepath=""):
 		"""Initialization for requester."""
 		# Init logging
@@ -28,10 +34,10 @@ class QualysRequester():
 		self.conf = {}
 		self.reports = {}
 		self.last_update = None
-		#self.checkPath
 		self.download_queue = queue.Queue()
 		# Always load config when created
 		self.loadconfig()
+		signal.signal(signal.SIGINT, self.signal_handler)
 		self.filepath = filepath
 
 	def loadconfig(self, configname='config.json'):
@@ -54,7 +60,7 @@ class QualysRequester():
 		self.load_report_cache()
 		self.rs = requests.session()
 		self.authenticate()
-		# TODO - create worker poolw
+		# TODO - create worker pool
 		while True:
 			try:
 				self.get_report_list()
@@ -73,24 +79,34 @@ class QualysRequester():
 
 	def enqueue_reports(self):
 		"""Figure out which reports still need to be downloaded."""
-		# TODO - hash each report with something like sha256 for validation
+		# TODO - hash each report with something like sha256 for validation?
 		logging.debug('Enqueing reports starting')
 		for t,r in self.reports.items():
 			logging.debug(f'Processing report {r}')
 			if r['LAST_ID'] != r['ID']:
 				logging.debug(f'Found undownloaded report {r}')
-				if r['OUTPUT_FORMAT'] in self.conf['report_formats']:
+				report_full = r['TITLE'] in self.conf['report_full']
+				report_partial = any(sub in r['TITLE'] for sub in self.conf['report_partial'])
+				report_formats = r['OUTPUT_FORMAT'] in self.conf['report_formats']
+				if not report_formats:
+					logging.debug(f"Skipping Report {r} not one of {str(self.conf['report_formats'])}")
+				elif report_full:
+					logging.debug(f'Enquing {r}')
+					self.download_queue.put({'ID':r['ID'], 'TITLE':r['TITLE'], 'OUTPUT_FORMAT':r['OUTPUT_FORMAT']})
+				elif report_partial:
 					logging.debug(f'Enquing {r}')
 					self.download_queue.put({'ID':r['ID'], 'TITLE':r['TITLE'], 'OUTPUT_FORMAT':r['OUTPUT_FORMAT']})
 				else:
-					logging.debug(f'Skipping Report {r} not TYPE HERE')
+					logging.debug(f"Report {r['TITLE']} does not meet criteria, skipping.")
+			else:
+				logging.debug('Some weird LAST_ID ID issue')
 		logging.debug('Enqueing reports finished')
 
 	def download_reports(self):
 		while True:
 			if not self.download_queue.empty():
 				# TODO - make sure there is something try except in case another thread already got it
-				# TODO - atomics for file handling
+				# TODO - file handling
 				rp = self.download_queue.get()
 				filename = f"{rp['TITLE']}-{rp['ID']}-RAW.{rp['OUTPUT_FORMAT']}"
 				# TODO - DO NOT CLOBBER FILES
@@ -101,7 +117,6 @@ class QualysRequester():
 				}
 				rs = self.qualys_post('report/', headers=self.headers, data=data)
 				filename = self.filepath + filename
-				#exit()
 				with open(filename, 'wb') as f:
 					for chunk in rs.iter_content(chunk_size=1024):
 						if chunk: # Filter out keep-alive new chunks
@@ -140,17 +155,13 @@ class QualysRequester():
 		# Iterate over every report and build or update the cache as needed
 		for r in xdict['REPORT_LIST_OUTPUT']['RESPONSE']['REPORT_LIST']['REPORT']:
 			# r keys 'ID', 'TITLE', 'TYPE', 'USER_LOGIN', 'LAUNCH_DATETIME', 'OUTPUT_FORMAT', 'SIZE', 'STATUS', 'EXPIRATION_DATETIME'
-			# TODO - Configurable filter
-			if r['TITLE'].startswith('NET.WB'):
-				if r['TITLE'] not in self.reports:
-					logging.debug(f"Adding new report {r['TITLE']}")
-					self.reports[r['TITLE']] = r
-					self.reports[r['TITLE']]['LAST_ID'] = None
-				else:
-					logging.debug(f"Updating report {r['TITLE']}")
-					logging.error('Updating report unimplemented')
+			if r['TITLE'] not in self.reports:
+				logging.debug(f"Adding new report {r['TITLE']}")
+				self.reports[r['TITLE']] = r
+				self.reports[r['TITLE']]['LAST_ID'] = None
 			else:
-				logging.debug(f"Skipping report {r['TITLE']}")
+				logging.debug(f"Updating report {r['TITLE']}")
+				logging.error('Updating report unimplemented')
 
 	def get_report_list2(self):
 		logging.info('Downloading report list')
@@ -182,8 +193,6 @@ class QualysRequester():
 				if chunk:
 					handle.write(chunk)
 
-
-
 	def authenticate(self):
 		logging.info('Authenticating')
 		data = {
@@ -204,13 +213,12 @@ class QualysRequester():
 		url = self.conf['url']+endpoint
 		logging.debug(f'Posting to {url}\tHeaders: {headers}\tData: {data}')
 		#r = requests.post(url=url, headers=self.headers, data=data, stream=True)
-		# stream=True is extremely important for keeping memory usage down
+		# stream=True keep memory usage down
 		r = self.rs.post(url=url, headers=self.headers, data=data, stream=True)
 		if r.status_code != requests.codes.ok:
 			logging.error(f'Problem posting to {url}')
 			logging.debug(r.content)
 		return r
-
 
 def checkPath(filepath):
 	if os.path.exists(filepath):
