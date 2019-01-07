@@ -1,0 +1,10 @@
+{
+	"username": "USER NAME",
+	"password": "PASSWORD",
+	"url": "https://qualysapi.qualys.com/api/2.0/fo/",
+	"report_full": ["FULL REPORT NAME"],
+	"report_partial": ["PARTIAL REPORT NAME"],
+	"report_formats": [""],
+	"reload_interval": 10,
+	"download_interval": 1
+}
