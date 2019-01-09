@@ -13,5 +13,5 @@ If there is any feedback or suggestions please feel free to reach out to me or t
 
 ## Example Uses
 
-MacOS / Linux . 
+MacOS / Linux<br/>
 username$ python3 app.py -0 /Users/{username}/Desktop/QualysReports
