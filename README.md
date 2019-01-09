@@ -1,6 +1,6 @@
 # QualysRequester
 
-QualysRequester is used to download reports from Qualys via their API by report name. This script allows for the user to pass arguments setting flags and specify a file path for their download(s). 
+QualysRequester is used to download reports from Qualys via their API by report name. This script allows for the user to pass arguments by setting flags and specifying a file path for their download(s). 
 
 ## Options
 
