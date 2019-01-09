@@ -10,3 +10,8 @@ To specify the report or reports the user must enter a full name or partial name
 -o : Specify the file path for the output. At the moment the absolute path must be used. 
 
 If there is any feedback or suggestions please feel free to reach out to me or the original author [@fragtastic]( https://github.com/fragtastic ). He has been fantastic in helping me on my journey in learning Python. 
+
+## Example Uses
+
+MacOS / Linux
+username$ python3 app.py -0 /Users/{username}/Desktop/QualysReports
